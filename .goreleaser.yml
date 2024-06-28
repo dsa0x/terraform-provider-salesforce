@@ -1,79 +1,42 @@
-archives:
-  - format: zip
-    name_template: '{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}'
 builds:
-  - env:
-      - CGO_ENABLED=0
-    flags:
-      - -trimpath
-    goos:
-      - darwin
-      - freebsd
-      - linux
-      - windows
-    goarch:
-      - '386'
-      - amd64
-      - arm
-      - arm64
-    ignore:
-      - goarch: arm
-        goos: windows
-      - goarch: arm64
-        goos: freebsd
-      - goarch: arm64
-        goos: windows
-    ldflags:
-      - -s -w -X internal/provider.Version={{.Version}}
-    mod_timestamp: '{{ .CommitTimestamp }}'
+- env:
+    - CGO_ENABLED=0
+  mod_timestamp: '{{ .CommitTimestamp }}'
+  flags:
+    - -trimpath
+  ldflags:
+    - '-s -w -X main.version={{.Version}} -X main.commit={{.Commit}}'
+  goos:
+    - windows
+    - linux
+    - darwin
+  goarch:
+    - amd64
+    - arm64
+  binary: '{{ .ProjectName }}_v{{ .Version }}'
+archives:
+- format: zip
+  name_template: '{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}'
 checksum:
   extra_files:
     - glob: 'terraform-registry-manifest.json'
       name_template: '{{ .ProjectName }}_{{ .Version }}_manifest.json'
   name_template: '{{ .ProjectName }}_{{ .Version }}_SHA256SUMS'
   algorithm: sha256
-publishers:
-  - name: hc-releases
-    checksum: true
-    extra_files:
-      - glob: 'terraform-registry-manifest.json'
-        name_template: '{{ .ProjectName }}_{{ .Version }}_manifest.json'
-    signature: true
-    cmd: hc-releases upload-file {{ abs .ArtifactPath }}
-    env:
-      - AWS_ACCESS_KEY_ID={{ .Env.AWS_ACCESS_KEY_ID }}
-      - AWS_SECRET_ACCESS_KEY={{ .Env.AWS_SECRET_ACCESS_KEY }}
-      - AWS_SESSION_TOKEN={{ .Env.AWS_SESSION_TOKEN }}
+signs:
+  - artifacts: checksum
+    args:
+      - "--batch"
+      - "--local-user"
+      - "{{ .Env.GPG_FINGERPRINT }}" # set this environment variable for your signing key
+      - "--output"
+      - "${signature}"
+      - "--detach-sign"
+      - "${artifact}"
 release:
   extra_files:
     - glob: 'terraform-registry-manifest.json'
       name_template: '{{ .ProjectName }}_{{ .Version }}_manifest.json'
-  ids:
-    - none
-signs:
-  # Default Signature file (i.e. terraform-provider-salesforce_VERSION_SHA256SUMS.sig)
-  - cmd: sh
-    args:
-    - -c
-    - >-
-      signore
-      sign
-      --dearmor
-      --file ${artifact}
-      --out ${signature}
-    artifacts: checksum
-  # Signature file with GPG Public Key ID in filename (i.e. terraform-provider-salesforce_VERSION_SHA256SUMS.7685B676.sig)
-  - id: sig-with-gpg-public-key-id
-    signature: ${artifact}.72D7468F.sig
-    cmd: sh
-    args:
-    - -c
-    - >-
-      signore
-      sign
-      --dearmor
-      --file ${artifact}
-      --out ${signature}
-    artifacts: checksum
-snapshot:
-  name_template: "{{ .Tag }}-next"
+  draft: true
+changelog:
+  skip: true
